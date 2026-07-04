@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>KAVA</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #1a1a1b;
+      --empty: #d3d6da;
+      --filled: #878a8c;
+      --absent: #787c7e;
+      --present: #c9b458;
+      --correct: #6aaa64;
+      --key: #d3d6da;
+      --key-text: #1a1a1b;
+      --popup-bg: #f4eadb;
+      --popup-border: #d4c2aa;
+      --popup-text: #2a241d;
+      --popup-shadow: rgba(94, 73, 48, .18);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { height: 100%; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow-x: hidden;
+    }
+
+    #message {
+      height: 28px;
+      min-width: 220px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+
+    .toast {
+      background: #1a1a1b;
+      color: #ffffff;
+      border-radius: 4px;
+      padding: 7px 10px;
+      font-size: .85rem;
+    }
+
+    #board {
+      display: grid;
+      grid-template-rows: repeat(6, 62px);
+      gap: 5px;
+      margin-bottom: 26px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: repeat(4, 62px);
+      gap: 5px;
+    }
+
+    .tile {
+      width: 62px;
+      height: 62px;
+      border: 2px solid var(--empty);
+      background: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      line-height: 1;
+      font-weight: 800;
+      text-transform: uppercase;
+      user-select: none;
+    }
+
+    .tile.filled { border-color: var(--filled); }
+
+    .tile.correct,
+    .tile.present,
+    .tile.absent {
+      border: none;
+      color: #ffffff;
+    }
+
+    .correct { background: var(--correct) !important; }
+    .present { background: var(--present) !important; }
+    .absent { background: var(--absent) !important; }
+
+    #keyboard {
+      width: min(96vw, 520px);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 0 8px 12px;
+    }
+
+    .key-row {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    button.key {
+      border: 0;
+      border-radius: 4px;
+      background: var(--key);
+      color: var(--key-text);
+      height: 58px;
+      min-width: 35px;
+      padding: 0 10px;
+      font-weight: 800;
+      cursor: pointer;
+      text-transform: uppercase;
+    }
+
+    button.key.wide {
+      min-width: 64px;
+      font-size: .72rem;
+    }
+
+    button.key.correct,
+    button.key.present,
+    button.key.absent { color: #ffffff; }
+    button.key:active { transform: translateY(1px); }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 5;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgba(244, 234, 219, .38);
+      backdrop-filter: blur(3px);
+    }
+
+    .overlay.hidden { display: none; }
+
+    .berry-window {
+      position: relative;
+      width: min(84vw, 315px);
+      min-height: 215px;
+      border-radius: 18px;
+      border: 2px solid var(--popup-border);
+      background: var(--popup-bg);
+      box-shadow: 0 18px 38px var(--popup-shadow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: floatIn .24s ease-out;
+    }
+
+    .berry-window::before,
+    .berry-window::after {
+      content: none;
+    }
+
+    .berry-word {
+      margin-top: 0;
+      font-size: clamp(2.7rem, 12vw, 4.5rem);
+      font-weight: 900;
+      letter-spacing: .08em;
+      color: var(--popup-text);
+      text-shadow: none;
+    }
+
+    .coffee-icon {
+      font-size: .82em;
+      letter-spacing: 0;
+      margin-left: .12em;
+      vertical-align: .04em;
+    }
+
+    .close-pop {
+      position: absolute;
+      right: 12px;
+      top: 12px;
+      width: 32px;
+      height: 32px;
+      border: 1px solid var(--popup-border);
+      border-radius: 10px;
+      background: #fffaf2;
+      color: var(--popup-text);
+      font-size: 1.25rem;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: none;
+      z-index: 1;
+    }
+
+    @keyframes floatIn {
+      from { transform: translateY(12px) scale(.96); opacity: .2; }
+      to { transform: translateY(0) scale(1); opacity: 1; }
+    }
+
+    @media (max-width: 420px) {
+      #board { grid-template-rows: repeat(6, 56px); }
+      .row { grid-template-columns: repeat(4, 56px); }
+      .tile { width: 56px; height: 56px; font-size: 1.8rem; }
+      button.key { min-width: 29px; padding: 0 8px; }
+      button.key.wide { min-width: 54px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="message" aria-live="polite"></div>
+  <main id="board" aria-label="Game board"></main>
+  <section id="keyboard" aria-label="Keyboard"></section>
+
+  <div class="overlay hidden" id="popup" role="dialog" aria-modal="true" aria-label="KAVA">
+    <div class="berry-window">
+      <button class="close-pop" id="closePopup" aria-label="Close">×</button>
+      <div class="berry-word">KAVA?<span class="coffee-icon" aria-hidden="true">☕</span></div>
+    </div>
+  </div>
+
+  <script>
+    const ANSWER = "KAVA";
+    const WORD_LENGTH = 4;
+    const MAX_GUESSES = 6;
+    const rows = [];
+    const keyStates = {};
+    let currentRow = 0;
+    let currentGuess = "";
+    let gameOver = false;
+
+    const board = document.getElementById("board");
+    const message = document.getElementById("message");
+    const keyboard = document.getElementById("keyboard");
+    const popup = document.getElementById("popup");
+
+    function buildBoard() {
+      board.innerHTML = "";
+      rows.length = 0;
+      for (let r = 0; r < MAX_GUESSES; r++) {
+        const row = document.createElement("div");
+        row.className = "row";
+        const tiles = [];
+        for (let c = 0; c < WORD_LENGTH; c++) {
+          const tile = document.createElement("div");
+          tile.className = "tile";
+          row.appendChild(tile);
+          tiles.push(tile);
+        }
+        board.appendChild(row);
+        rows.push(tiles);
+      }
+    }
+
+    function buildKeyboard() {
+      keyboard.innerHTML = "";
+      const layout = [
+        ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
+        ["A", "S", "D", "F", "G", "H", "J", "K", "L"],
+        ["ENTER", "Z", "X", "C", "V", "B", "N", "M", "⌫"]
+      ];
+
+      layout.forEach(rowKeys => {
+        const row = document.createElement("div");
+        row.className = "key-row";
+        rowKeys.forEach(letter => {
+          const key = document.createElement("button");
+          key.className = "key" + (letter.length > 1 ? " wide" : "");
+          key.textContent = letter;
+          key.dataset.key = letter;
+          key.addEventListener("click", () => handleKey(letter));
+          row.appendChild(key);
+        });
+        keyboard.appendChild(row);
+      });
+    }
+
+    function showMessage(text) {
+      message.innerHTML = `<span class="toast">${text}</span>`;
+      setTimeout(() => {
+        if (message.textContent === text) message.innerHTML = "";
+      }, 1000);
+    }
+
+    function showPopup() {
+      popup.classList.remove("hidden");
+    }
+
+    function updateTiles() {
+      rows[currentRow].forEach((tile, i) => {
+        tile.textContent = currentGuess[i] || "";
+        tile.classList.toggle("filled", Boolean(currentGuess[i]));
+      });
+    }
+
+    function handleKey(key) {
+      if (gameOver) return;
+      if (key === "ENTER") return submitGuess();
+      if (key === "⌫" || key === "BACKSPACE") {
+        currentGuess = currentGuess.slice(0, -1);
+        updateTiles();
+        return;
+      }
+      if (/^[A-Z]$/.test(key) && currentGuess.length < WORD_LENGTH) {
+        currentGuess += key;
+        updateTiles();
+      }
+    }
+
+    function scoreGuess(guess) {
+      const result = Array(WORD_LENGTH).fill("absent");
+      const answerLetters = ANSWER.split("");
+
+      for (let i = 0; i < WORD_LENGTH; i++) {
+        if (guess[i] === ANSWER[i]) {
+          result[i] = "correct";
+          answerLetters[i] = null;
+        }
+      }
+
+      for (let i = 0; i < WORD_LENGTH; i++) {
+        if (result[i] === "correct") continue;
+        const matchIndex = answerLetters.indexOf(guess[i]);
+        if (matchIndex !== -1) {
+          result[i] = "present";
+          answerLetters[matchIndex] = null;
+        }
+      }
+      return result;
+    }
+
+    function setKeyState(letter, state) {
+      const rank = { absent: 0, present: 1, correct: 2 };
+      if (keyStates[letter] && rank[state] <= rank[keyStates[letter]]) return;
+      keyStates[letter] = state;
+      const key = document.querySelector(`[data-key="${letter}"]`);
+      if (key) {
+        key.classList.remove("absent", "present", "correct");
+        key.classList.add(state);
+      }
+    }
+
+    function submitGuess() {
+      if (currentGuess.length !== WORD_LENGTH) {
+        showMessage("Not enough letters");
+        return;
+      }
+
+      const score = scoreGuess(currentGuess);
+      rows[currentRow].forEach((tile, i) => {
+        tile.classList.remove("filled");
+        tile.classList.add(score[i]);
+        setKeyState(currentGuess[i], score[i]);
+      });
+
+      if (currentGuess === ANSWER) {
+        gameOver = true;
+        setTimeout(showPopup, 450);
+        return;
+      }
+
+      currentRow++;
+      currentGuess = "";
+
+      if (currentRow === MAX_GUESSES) {
+        gameOver = true;
+        setTimeout(showPopup, 450);
+      }
+    }
+
+    function resetGame() {
+      currentRow = 0;
+      currentGuess = "";
+      gameOver = false;
+      popup.classList.add("hidden");
+      Object.keys(keyStates).forEach(k => delete keyStates[k]);
+      message.innerHTML = "";
+      buildBoard();
+      buildKeyboard();
+    }
+
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && !popup.classList.contains("hidden")) {
+        popup.classList.add("hidden");
+        return;
+      }
+      const key = event.key.toUpperCase();
+      if (key === "ENTER" || key === "BACKSPACE" || /^[A-Z]$/.test(key)) {
+        event.preventDefault();
+        handleKey(key === "BACKSPACE" ? "BACKSPACE" : key);
+      }
+    });
+
+    document.getElementById("closePopup").addEventListener("click", () => {
+      popup.classList.add("hidden");
+    });
+
+    popup.addEventListener("click", event => {
+      if (event.target === popup) popup.classList.add("hidden");
+    });
+
+    resetGame();
+  </script>
+</body>
+</html>
